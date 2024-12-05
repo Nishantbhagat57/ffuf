@@ -113,60 +113,57 @@ func (w *WordlistInput) validFile(path string) (bool, error) {
 
 // readFile reads the file line by line to a byte slice
 func (w *WordlistInput) readFile(path string) error {
-	var file *os.File
-	var err error
-	if path == "-" {
-		file = os.Stdin
-	} else {
-		file, err = os.Open(path)
-		if err != nil {
-			return err
-		}
-	}
-	defer file.Close()
+    var file *os.File
+    var err error
+    if path == "-" {
+        file = os.Stdin
+    } else {
+        file, err = os.Open(path)
+        if err != nil {
+            return err
+        }
+    }
+    defer file.Close()
 
-	var data [][]byte
-	var ok bool
-	reader := bufio.NewScanner(file)
-	re := regexp.MustCompile(`(?i)%ext%`)
-	for reader.Scan() {
-		if w.config.DirSearchCompat && len(w.config.Extensions) > 0 {
-			text := []byte(reader.Text())
-			if re.Match(text) {
-				for _, ext := range w.config.Extensions {
-					contnt := re.ReplaceAll(text, []byte(ext))
-					data = append(data, []byte(contnt))
-				}
-			} else {
-				text := reader.Text()
+    var data [][]byte
+    var ok bool
+    reader := bufio.NewScanner(file)
+    re := regexp.MustCompile(`(?i)%ext%`)
+    for reader.Scan() {
+        text := reader.Text()
 
-				if w.config.IgnoreWordlistComments {
-					text, ok = stripComments(text)
-					if !ok {
-						continue
-					}
-				}
-				data = append(data, []byte(text))
-			}
-		} else {
-			text := reader.Text()
+        if w.config.IgnoreWordlistComments {
+            text, ok = stripComments(text)
+            if !ok {
+                continue
+            }
+        }
 
-			if w.config.IgnoreWordlistComments {
-				text, ok = stripComments(text)
-				if !ok {
-					continue
-				}
-			}
-			data = append(data, []byte(text))
-			if w.keyword == "FUZZ" && len(w.config.Extensions) > 0 {
-				for _, ext := range w.config.Extensions {
-					data = append(data, []byte(text+ext))
-				}
-			}
-		}
-	}
-	w.data = data
-	return reader.Err()
+        if w.config.DirSearchCompat && len(w.config.Extensions) > 0 {
+            textBytes := []byte(text)
+            if re.Match(textBytes) {
+                for _, ext := range w.config.Extensions {
+                    contnt := re.ReplaceAll(textBytes, []byte(ext))
+                    data = append(data, []byte(contnt))
+                }
+            } else {
+                // Only add entries for each extension, skip the word itself
+                for _, ext := range w.config.Extensions {
+                    data = append(data, []byte(text+ext))
+                }
+            }
+        } else if len(w.config.Extensions) > 0 {
+            // If there are extensions, only add those, not the original word
+            for _, ext := range w.config.Extensions {
+                data = append(data, []byte(text+ext))
+            }
+        } else {
+            // No extensions or place-holder: just add the word as it is
+            data = append(data, []byte(text))
+        }
+    }
+    w.data = data
+    return reader.Err()
 }
 
 // stripComments removes all kind of comments from the word
